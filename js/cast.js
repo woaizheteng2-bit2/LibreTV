@@ -154,37 +154,38 @@
             // Cast SDK 还没加载完，先触发加载
             if (!this._castSDKLoaded) {
                 this._loadCastSDK();
-                // 显示提示
-                this._showToast('正在加载投屏服务，请稍后重试...');
+                this._showToast('正在加载投屏服务...');
                 return;
             }
 
-            // 都不支持，提示用户使用浏览器内置投屏（支持 DLNA）
-            // 三星/小米/海信等电视大多使用 DLNA 协议
-            this._showCastGuide();
+            // 都不支持，直接显示三星电视专用扫码投屏
+            this._showSamsungQR();
         },
 
         /**
-         * 显示投屏引导（针对 DLNA 设备，如三星电视）
+         * 三星电视专用：显示扫码投屏
+         * 三星2015年电视使用私有AllShare协议，Google Cast/DLNA均不兼容
+         * 最佳方案：手机扫码播放，再用三星Smart View投屏到电视
          */
-        _showCastGuide: function () {
-            var isChrome = navigator.userAgent.indexOf('Chrome') > -1;
-            var isEdge = navigator.userAgent.indexOf('Edg') > -1;
-            var isSafari = navigator.userAgent.indexOf('Safari') > -1 
-                && navigator.userAgent.indexOf('Chrome') === -1;
-            var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        _showSamsungQR: function () {
+            this._showToast('三星电视请扫码后用手机投屏');
+            setTimeout(function () {
+                window.CastManager.showQRCode();
+            }, 1200);
+        },
 
-            var msg;
-            if (isMobile && isChrome) {
-                msg = '点Chrome地址栏旁边⋮→「投屏」选电视';
-            } else if (isChrome || isEdge) {
-                msg = '点浏览器右上角⋮→「投屏」\n支持DLNA（三星/小米/海信等电视）';
-            } else if (isSafari) {
-                msg = '点Safari菜单→「AirPlay」投屏';
-            } else {
-                msg = '请使用Chrome或Edge浏览器\n点击右上角⋮→「投屏」选电视';
-            }
-            this._showToast(msg);
+        /**
+         * 在 Google Cast 投屏失败后显示其他选项
+         */
+        _showCastFallback: function () {
+            var self = this;
+            // 1秒后显示三星扫码方案
+            setTimeout(function () {
+                self._showToast('三星电视建议扫码投屏');
+                setTimeout(function () {
+                    self.showQRCode();
+                }, 1200);
+            }, 1000);
         },
 
         /**
@@ -295,23 +296,8 @@
                             : videoUrl;
                         window.CastManager._loadMedia(session, videoUrl, title, poster, 3);
                     } else {
-                    // 全部失败，显示详细错误
-                    var errMsg = '投屏失败';
-                    var isChrome = navigator.userAgent.indexOf('Chrome') > -1;
-                    
-                    if (err && err.code === 'LOAD_CANCELLED') {
-                        errMsg = '投屏已取消';
-                    } else if (err && err.code === 'TIMEOUT') {
-                        errMsg = '投屏超时\n请确认电视网络正常';
-                    } else if (videoUrl.startsWith('http://')) {
-                        errMsg = '投屏失败\n可尝试Chrome右上角⋮→「投屏」';
-                    } else if (isChrome) {
-                        // 三星等DLNA电视推荐用Chrome内置投屏
-                        errMsg = '投屏不成功\n试试Chrome右上角⋮→「投屏」\n支持DLNA电视（三星/小米等）';
-                    } else {
-                        errMsg = '投屏失败\n建议使用Chrome浏览器的投屏功能';
-                    }
-                    self._showToast(errMsg);
+                    // 全部失败，显示详细错误并推荐三星扫码方案
+                    self._showCastFallback();
                     }
                 });
         },
@@ -431,6 +417,115 @@
                 setTimeout(function () { div.remove(); }, 300);
                 window.CastManager._toastTimer = null;
             }, 3500);
+        },
+
+        /**
+         * 显示扫码投屏弹窗（三星电视专用）
+         */
+        showQRCode: function () {
+            var art = this._currentArt;
+            var title = this._getVideoTitle();
+            var videoUrl = this._getVideoUrl(art);
+            
+            // 构建分享链接 - 当前播放器页面URL
+            var shareUrl = window.location.href;
+            
+            // 获取或创建QR弹窗
+            var modal = document.getElementById('castQRModal');
+            if (!modal) {
+                modal = this._createQRModal();
+            }
+            
+            // 更新QR码图片
+            var qrImg = document.getElementById('castQRImage');
+            if (qrImg) {
+                var encodedUrl = encodeURIComponent(shareUrl);
+                qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodedUrl;
+                qrImg.alt = title;
+            }
+            
+            // 显示视频标题
+            var titleEl = document.getElementById('castQRTitle');
+            if (titleEl) titleEl.textContent = title || '正在播放';
+            
+            // 显示链接
+            var linkEl = document.getElementById('castQRLink');
+            if (linkEl) linkEl.textContent = shareUrl;
+            
+            // 显示弹窗
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(function () {
+                modal.classList.remove('opacity-0');
+                modal.classList.add('opacity-100');
+            }, 10);
+        },
+
+        /**
+         * 关闭扫码投屏弹窗
+         */
+        hideQRCode: function () {
+            var modal = document.getElementById('castQRModal');
+            if (modal) {
+                modal.classList.remove('opacity-100', 'flex');
+                modal.classList.add('opacity-0');
+                setTimeout(function () {
+                    modal.classList.add('hidden');
+                }, 300);
+            }
+        },
+
+        /**
+         * 创建扫码投屏弹窗DOM
+         */
+        _createQRModal: function () {
+            var modal = document.createElement('div');
+            modal.id = 'castQRModal';
+            modal.className = 'fixed inset-0 bg-black/80 hidden items-center justify-center z-[10002] opacity-0 transition-opacity duration-300';
+            modal.innerHTML = '<div class="bg-[#111] rounded-2xl p-6 w-80 border border-[#333] shadow-2xl text-center">'
+                + '<h3 class="text-lg font-bold text-white mb-1">📱 手机扫码播放</h3>'
+                + '<p class="text-gray-400 text-xs mb-4">用手机扫描二维码，然后通过三星 Smart View 投屏到电视</p>'
+                + '<div class="bg-white rounded-xl p-3 inline-block mb-3">'
+                + '<img id="castQRImage" src="" alt="QR码" class="w-60 h-60">'
+                + '</div>'
+                + '<p id="castQRTitle" class="text-white text-sm font-medium mb-1 truncate px-2"></p>'
+                + '<p class="text-gray-500 text-xs mb-4 break-all px-2" id="castQRLink"></p>'
+                + '<div class="flex gap-2">'
+                + '<button onclick="window.CastManager.hideQRCode()" class="flex-1 px-3 py-2 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm transition-colors">关闭</button>'
+                + '<button onclick="window.CastManager._copyQRUrl()" class="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors">复制链接</button>'
+                + '</div>'
+                + '<p class="text-gray-500 text-xs mt-3">💡 手机上打开链接后，用 <span class="text-blue-400">三星 Smart View</span> 应用投屏到电视</p>'
+                + '</div>';
+            document.body.appendChild(modal);
+            return modal;
+        },
+
+        /**
+         * 复制当前视频链接
+         */
+        _copyQRUrl: function () {
+            var url = window.location.href;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(function () {
+                    window.CastManager._showToast('链接已复制 ✓');
+                }).catch(function () {
+                    window.CastManager._fallbackCopy(url);
+                });
+            } else {
+                this._fallbackCopy(url);
+            }
+        },
+
+        _fallbackCopy: function (text) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+            this._showToast('链接已复制 ✓');
         },
 
         /**
