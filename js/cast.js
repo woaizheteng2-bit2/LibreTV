@@ -208,12 +208,29 @@
 
         /**
          * 发送媒体到投屏设备
+         * 尝试多种方式加载，提高成功率
          */
-        _loadMedia: function (session, videoUrl, title, poster) {
-            // 确定 MIME 类型
-            var contentType = videoUrl.endsWith('.m3u8') 
-                ? 'application/x-mpegurl' 
-                : 'video/mp4';
+        _loadMedia: function (session, videoUrl, title, poster, attempt) {
+            attempt = attempt || 1;
+            var self = this;
+
+            // 如果视频是 HTTP 的，Chromecast 默认媒体接收器可能拒绝
+            // 尝试转为 HTTPS（某些源支持同时使用 HTTP 和 HTTPS）
+            if (attempt === 1 && videoUrl.startsWith('http://')) {
+                videoUrl = videoUrl.replace('http://', 'https://');
+            }
+
+            // 确定 MIME 类型 - 使用更多兼容格式
+            var contentType;
+            if (videoUrl.endsWith('.m3u8')) {
+                contentType = 'application/x-mpegurl';
+            } else if (videoUrl.endsWith('.mp4')) {
+                contentType = 'video/mp4';
+            } else if (videoUrl.endsWith('.webm')) {
+                contentType = 'video/webm';
+            } else {
+                contentType = 'video/mp4';
+            }
 
             var mediaInfo = new chrome.cast.media.MediaInfo(videoUrl, contentType);
             mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
@@ -223,17 +240,48 @@
                 mediaInfo.metadata.images = [new chrome.cast.Image(poster)];
             }
 
+            // 添加自定义请求头（部分源需要 Referer）
+            // mediaInfo.customData = { headers: { Referer: window.location.origin + '/' } };
+
             var request = new chrome.cast.media.LoadRequest(mediaInfo);
             request.autoplay = true;
+            // 不设置 currentTime，让 Chromecast 从视频开始播放
+            // 某些源不支持 seek
 
             session.loadMedia(request)
                 .then(function () {
                     console.log('[Cast] 投屏成功:', title);
-                    window.CastManager._showToast('已投屏到电视 ✓');
+                    self._showToast('已投屏到电视 ✓');
                 })
                 .catch(function (err) {
-                    console.error('[Cast] 投屏加载失败:', err);
-                    window.CastManager._showToast('投屏播放失败');
+                    console.error('[Cast] 投屏加载失败 (尝试' + attempt + '):', err);
+                    
+                    // 尝试不同的策略
+                    if (attempt === 1) {
+                        // 第一次失败: 尝试原始 URL 和备用 content type
+                        var origUrl = window.CastManager._getVideoUrl(
+                            window.CastManager._currentArt
+                        );
+                        window.CastManager._showToast('正在尝试其他播放方式...');
+                        window.CastManager._loadMedia(session, origUrl, title, poster, 2);
+                    } else if (attempt === 2) {
+                        // 第二次失败: 尝试 MP4 content type
+                        var mp4Url = videoUrl.endsWith('.m3u8') 
+                            ? videoUrl 
+                            : videoUrl;
+                        window.CastManager._loadMedia(session, videoUrl, title, poster, 3);
+                    } else {
+                        // 全部失败，显示详细错误
+                        var errMsg = '投屏失败';
+                        if (err && err.code === 'LOAD_CANCELLED') {
+                            errMsg = '投屏已取消';
+                        } else if (err && err.code === 'TIMEOUT') {
+                            errMsg = '投屏超时\n请确认电视网络正常';
+                        } else if (videoUrl.startsWith('http://')) {
+                            errMsg = '投屏失败\n视频源为HTTP，Chromecast需要HTTPS';
+                        }
+                        self._showToast(errMsg);
+                    }
                 });
         },
 
