@@ -471,6 +471,19 @@ function initPlayer(videoUrl) {
         moreVideoAttr: {
             crossOrigin: 'anonymous',
         },
+        controls: [
+            {
+                position: 'right',
+                index: 100,
+                html: '<svg class="art-icon art-cast-icon" viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h12v2H3v-2zm0 4h8v2H3v-2zm0 4h8v2H3v-2zm14-4v4h4v-4h-4zm-2 6v-8h8v8h-8z"/></svg>',
+                tooltip: '投屏',
+                click: function () {
+                    if (window.CastManager) {
+                        window.CastManager.cast(this);
+                    }
+                }
+            }
+        ],
         customType: {
             m3u8: function (video, url) {
                 // 清理之前的HLS实例
