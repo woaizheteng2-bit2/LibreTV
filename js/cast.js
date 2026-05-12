@@ -159,8 +159,32 @@
                 return;
             }
 
-            // 都不支持，提示用户使用浏览器内置投屏
-            this._showToast('未检测到投屏设备\n请在浏览器菜单中点击"投屏"按钮');
+            // 都不支持，提示用户使用浏览器内置投屏（支持 DLNA）
+            // 三星/小米/海信等电视大多使用 DLNA 协议
+            this._showCastGuide();
+        },
+
+        /**
+         * 显示投屏引导（针对 DLNA 设备，如三星电视）
+         */
+        _showCastGuide: function () {
+            var isChrome = navigator.userAgent.indexOf('Chrome') > -1;
+            var isEdge = navigator.userAgent.indexOf('Edg') > -1;
+            var isSafari = navigator.userAgent.indexOf('Safari') > -1 
+                && navigator.userAgent.indexOf('Chrome') === -1;
+            var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+            var msg;
+            if (isMobile && isChrome) {
+                msg = '点Chrome地址栏旁边⋮→「投屏」选电视';
+            } else if (isChrome || isEdge) {
+                msg = '点浏览器右上角⋮→「投屏」\n支持DLNA（三星/小米/海信等电视）';
+            } else if (isSafari) {
+                msg = '点Safari菜单→「AirPlay」投屏';
+            } else {
+                msg = '请使用Chrome或Edge浏览器\n点击右上角⋮→「投屏」选电视';
+            }
+            this._showToast(msg);
         },
 
         /**
@@ -271,16 +295,23 @@
                             : videoUrl;
                         window.CastManager._loadMedia(session, videoUrl, title, poster, 3);
                     } else {
-                        // 全部失败，显示详细错误
-                        var errMsg = '投屏失败';
-                        if (err && err.code === 'LOAD_CANCELLED') {
-                            errMsg = '投屏已取消';
-                        } else if (err && err.code === 'TIMEOUT') {
-                            errMsg = '投屏超时\n请确认电视网络正常';
-                        } else if (videoUrl.startsWith('http://')) {
-                            errMsg = '投屏失败\n视频源为HTTP，Chromecast需要HTTPS';
-                        }
-                        self._showToast(errMsg);
+                    // 全部失败，显示详细错误
+                    var errMsg = '投屏失败';
+                    var isChrome = navigator.userAgent.indexOf('Chrome') > -1;
+                    
+                    if (err && err.code === 'LOAD_CANCELLED') {
+                        errMsg = '投屏已取消';
+                    } else if (err && err.code === 'TIMEOUT') {
+                        errMsg = '投屏超时\n请确认电视网络正常';
+                    } else if (videoUrl.startsWith('http://')) {
+                        errMsg = '投屏失败\n可尝试Chrome右上角⋮→「投屏」';
+                    } else if (isChrome) {
+                        // 三星等DLNA电视推荐用Chrome内置投屏
+                        errMsg = '投屏不成功\n试试Chrome右上角⋮→「投屏」\n支持DLNA电视（三星/小米等）';
+                    } else {
+                        errMsg = '投屏失败\n建议使用Chrome浏览器的投屏功能';
+                    }
+                    self._showToast(errMsg);
                     }
                 });
         },
