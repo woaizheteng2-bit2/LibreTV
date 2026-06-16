@@ -482,18 +482,18 @@ function initPlayer(videoUrl) {
                         window.CastManager.cast(this);
                     }
                 }
-            }
-        ],
-        layers: [
+            },
             {
-                name: 'network-speed',
+                position: 'right',
+                index: 99,
                 html: '<span class="art-network-speed">0 KB/s</span>',
                 style: {
-                    position: 'absolute',
-                    bottom: '40px',
-                    right: '12px',
-                    zIndex: 20,
-                    pointerEvents: 'none',
+                    cursor: 'default',
+                    fontSize: '12px',
+                    padding: '0 8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    height: '100%',
                 },
             }
         ],
@@ -602,7 +602,6 @@ function initPlayer(videoUrl) {
                     if (!el || !hls) return;
                     const bps = hls.bandwidthEstimate || 0;
                     if (bps > 0) {
-                        el.style.display = '';
                         const kbps = bps / 1000;
                         el.textContent = kbps >= 1000 ? (kbps / 1000).toFixed(1) + ' MB/s' : Math.round(kbps) + ' KB/s';
                     } else {
