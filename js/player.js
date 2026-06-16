@@ -484,6 +484,19 @@ function initPlayer(videoUrl) {
                 }
             }
         ],
+        layers: [
+            {
+                name: 'network-speed',
+                html: '<span class="art-network-speed">0 KB/s</span>',
+                style: {
+                    position: 'absolute',
+                    bottom: '40px',
+                    right: '12px',
+                    zIndex: 20,
+                    pointerEvents: 'none',
+                },
+            }
+        ],
         customType: {
             m3u8: function (video, url) {
                 // 清理之前的HLS实例
@@ -583,14 +596,36 @@ function initPlayer(videoUrl) {
                     }
                 });
 
+                // 更新网络速度显示
+                function updateNetworkSpeed() {
+                    const el = document.querySelector('.art-network-speed');
+                    if (!el || !hls) return;
+                    const bps = hls.bandwidthEstimate || 0;
+                    if (bps > 0) {
+                        el.style.display = '';
+                        const kbps = bps / 1000;
+                        el.textContent = kbps >= 1000 ? (kbps / 1000).toFixed(1) + ' MB/s' : Math.round(kbps) + ' KB/s';
+                    } else {
+                        el.textContent = '0 KB/s';
+                    }
+                }
+
+                // 清除之前的定时器
+                if (window._speedTimer) clearInterval(window._speedTimer);
+
+                // 定时更新速度显示
+                window._speedTimer = setInterval(updateNetworkSpeed, 2000);
+
                 // 监听分段加载事件
                 hls.on(Hls.Events.FRAG_LOADED, function () {
                     document.getElementById('player-loading').style.display = 'none';
+                    updateNetworkSpeed();
                 });
 
                 // 监听级别加载事件
                 hls.on(Hls.Events.LEVEL_LOADED, function () {
                     document.getElementById('player-loading').style.display = 'none';
+                    updateNetworkSpeed();
                 });
             }
         }
