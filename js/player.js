@@ -483,19 +483,7 @@ function initPlayer(videoUrl) {
                     }
                 }
             },
-            {
-                position: 'right',
-                index: 99,
-                html: '<span class="art-network-speed">0 KB/s</span>',
-                style: {
-                    cursor: 'default',
-                    fontSize: '12px',
-                    padding: '0 8px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    height: '100%',
-                },
-            }
+
         ],
         customType: {
             m3u8: function (video, url) {
@@ -599,10 +587,9 @@ function initPlayer(videoUrl) {
                 // 更新网络速度显示
                 function updateNetworkSpeed() {
                     const el = document.querySelector('.art-network-speed');
-                    if (!el || !hls) return;
-                    const bps = hls.bandwidthEstimate || 0;
-                    if (bps > 0) {
-                        const kbps = bps / 1000;
+                    if (!el) return;
+                    if (hls && hls.bandwidthEstimate) {
+                        const kbps = hls.bandwidthEstimate / 1000;
                         el.textContent = kbps >= 1000 ? (kbps / 1000).toFixed(1) + ' MB/s' : Math.round(kbps) + ' KB/s';
                     } else {
                         el.textContent = '0 KB/s';
@@ -614,6 +601,9 @@ function initPlayer(videoUrl) {
 
                 // 定时更新速度显示
                 window._speedTimer = setInterval(updateNetworkSpeed, 2000);
+
+                // 监听视频播放进度更新网速
+                video.addEventListener('timeupdate', updateNetworkSpeed);
 
                 // 监听分段加载事件
                 hls.on(Hls.Events.FRAG_LOADED, function () {
@@ -629,6 +619,15 @@ function initPlayer(videoUrl) {
             }
         }
     });
+
+    // 添加网速指示器到播放器
+    let speedIndicator = document.querySelector('.art-network-speed');
+    if (!speedIndicator) {
+        speedIndicator = document.createElement('div');
+        speedIndicator.className = 'art-network-speed';
+        speedIndicator.textContent = '0 KB/s';
+        document.querySelector('#player').appendChild(speedIndicator);
+    }
 
     // artplayer 没有 'fullscreenWeb:enter', 'fullscreenWeb:exit' 等事件
     // 所以原控制栏隐藏代码并没有起作用
