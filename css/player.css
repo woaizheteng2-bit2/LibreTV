@@ -397,6 +397,11 @@ input:checked + .slider:before {
 
 /* 网络速度指示器样式 */
 .art-network-speed {
+    position: absolute;
+    bottom: 40px;
+    right: 12px;
+    z-index: 20;
+    pointer-events: none;
     color: rgba(255, 255, 255, 0.9);
     font-size: 12px;
     font-family: system-ui, -apple-system, sans-serif;
